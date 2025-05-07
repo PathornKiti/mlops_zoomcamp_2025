@@ -11,9 +11,10 @@ numpy = "^2.2.5"
 pandas = "^2.2.3"
 scikit-learn = "^1.6.1"
 requests = "^2.32.3"
-pyarrow = "^20.0.0"
+pyarrow = "^19.0.0"
 statsmodels = "^0.14.4"
 scipy = "^1.15.2"
+mlflow = "^2.22.0"
 
 
 [build-system]
