@@ -174,3 +174,7 @@ cython_debug/
 .pypirc
 
 mlruns
+*.parquet
+data
+output
+*.db
