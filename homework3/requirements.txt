@@ -1,0 +1,7 @@
+pandas
+requests
+scikit-learn
+xgboost
+mlflow[extras]
+boto3
+sqlalchemy
