@@ -2,6 +2,8 @@ pandas
 requests
 scikit-learn
 xgboost
-mlflow[extras]
+mlflow
 boto3
 sqlalchemy
+apache-airflow==3.0.1
+pyarrow==20.0.0
