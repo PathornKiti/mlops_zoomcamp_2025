@@ -59,7 +59,6 @@ services:
   airflow-dag-processor:
     <<: *airflow-common
     command: dag-processor
-    mem_limit: 4g
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
       interval: 30s

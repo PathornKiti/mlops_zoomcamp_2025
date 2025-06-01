@@ -1,99 +1,155 @@
-# 📣 MLflow + Apache Airflow 3.0.1 — Dockerized Dev Environment
+# Airflow + MLflow Setup Guide
 
-This repository sets up **Apache Airflow 3.0.1** and **MLflow** in isolated containers using Docker Compose. It enables you to run ETL workflows and experiment tracking in a unified local setup.
+This guide walks you through setting up **Apache Airflow** with **MLflow** using Docker Compose.
 
 ---
 
-## 📆 Project Structure
+## 📁 Project Structure
 
 ```
 .
-├── Dockerfile.airflow        # Custom Airflow Dockerfile
-├── Dockerfile.mlflow         # Custom MLflow Dockerfile
-├── docker-compose.yml        # Compose file to spin up services
-├── dags/                     # Airflow DAGs live here
-├── mlruns/                   # MLflow artifact storage
-├── requirements.txt          # Shared Python requirements
-└── README.md                 # You're here!
+├── config/
+├── dags/
+├── logs/
+├── mlflow/
+├── plugins/
+├── docker-compose.yaml
+├── Dockerfile.airflow
+├── Dockerfile.mlflow
+├── README.md
+├── requirements.txt
+└── Makefile
 ```
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Step-by-Step Setup
 
-### 1. 📅 Prerequisites
-
-* [Docker](https://www.docker.com/products/docker-desktop)
-* [Docker Compose](https://docs.docker.com/compose/)
-
----
-
-### 2. 🛠️ Setup Steps
-
-#### 🔧 2.1 Add Your Python Libraries
-
-Edit `requirements.txt` to include any additional dependencies needed by either MLflow or Airflow.
-
-#### 📁 2.2 Create Required Folders
+### 1. ✅ Build the Docker Images
 
 ```bash
-mkdir -p dags mlruns
+make build
 ```
 
----
-
-### 3. 💪 Build and Start Services
+### 2. 📆 Start the Airflow + MLflow Services
 
 ```bash
-docker compose up --build
+make up
 ```
 
----
+This will spin up the following services:
 
-## 🌐 Services Overview
+* `airflow-apiserver` (UI available at [http://localhost:8080](http://localhost:8080))
+* `airflow-scheduler`
+* `airflow-dag-processor`
+* `postgres` (Airflow metadata DB)
+* `mlflow` (UI available at [http://localhost:5050](http://localhost:5050))
 
-| Service    | Port   | Description                    |
-| ---------- | ------ | ------------------------------ |
-| Airflow UI | `8080` | DAG orchestration & scheduling |
-| MLflow UI  | `5050` | Experiment tracking dashboard  |
-
----
-
-## 💾 Persistent Volumes
-
-* Airflow DB volume: `airflow_db`
-* MLflow artifacts: `mlruns/` (mounted)
-* MLflow DB volume: `mlflow_db`
-
-These ensure your data persists across container restarts.
-
----
-
-## 🪟 Stopping & Cleaning Up
-
-To stop services:
+### 3. 🪄 Initialize Airflow (first time only)
 
 ```bash
-docker compose down
+make airflow-init
 ```
 
-To remove all volumes as well:
+> ⚠️ Make sure `airflow-init` finishes successfully before running DAGs.
+
+---
+
+## 🛠️ Creating and Running DAGs
+
+1. Place your DAG Python files inside the `dags/` directory.
+
+2. Access the Airflow UI at [http://localhost:8080](http://localhost:8080)
+
+   * Username: `airflow`
+   * Password: `airflow`
+
+3. Trigger your DAG manually or wait for it to be scheduled.
+
+---
+
+## 📡 Tracking Models in MLflow
+
+1. After the model is trained in the DAG, it will be logged to MLflow.
+2. Open MLflow UI: [http://localhost:5050](http://localhost:5050)
+3. Navigate through experiments, runs, and models.
+
+---
+
+## 📄 Makefile Commands
+
+```Makefile
+# Build all docker images
+docker-compose build
+
+# Start all containers
+docker-compose up -d
+
+# Initialize Airflow
+docker-compose run --rm airflow-init
+
+# Stop all services
+docker-compose down
+
+# Remove all volumes and services
+docker-compose down -v
+
+# View logs
+docker-compose logs -f
+
+# Open Airflow URL
+echo "http://localhost:8080"
+
+# Open MLflow URL
+echo "http://localhost:5050"
+```
+
+Wrap these commands in a `Makefile` like so:
+
+```make
+build:
+	docker compose build
+
+up:
+	docker compose up -d
+
+airflow-init:
+	docker compose run --rm airflow-init
+
+down:
+	docker compose down
+
+clean:
+	docker compose down -v
+
+deploy: build up airflow-init
+
+logs:
+	docker compose logs -f
+
+open-airflow:
+	echo "http://localhost:8080"
+
+open-mlflow:
+	echo "http://localhost:5050"
+```
+
+---
+
+## 🛀 Clean-Up Tips
+
+If you encounter memory issues (especially on 8GB machines):
+
+* Lower memory limits in `docker-compose.yaml` (`mem_limit` fields)
+* Process fewer rows in your training DAG
+* Restart Docker after stopping services
+
+---
+
+## ✅ Quick Checks
 
 ```bash
-docker compose down -v
+docker compose ps             # Check if all services are healthy
+curl localhost:8080           # Check if Airflow UI is up
+curl localhost:5050/health    # Check if MLflow is healthy
 ```
-
----
-
-## 📌 Notes
-
-* Airflow uses SQLite with `SequentialExecutor` by default.
-* MLflow uses SQLite for the backend store and `mlruns/` for artifact storage.
-* This setup is intended for **local development** only.
-
----
-
-## 🧠 Useful Links
-
-* [Airflow Docs](https://airflow.apache.org/docs/)
-* [MLflow Docs](https://mlflow.org/docs/latest/index.html)
