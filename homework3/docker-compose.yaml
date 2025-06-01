@@ -6,7 +6,7 @@ x-airflow-common:
   #image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:3.0.1}
   build: 
     context: .  
-    dockerfile: Dockerfile
+    dockerfile: Dockerfile.airflow
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -26,11 +26,14 @@ x-airflow-common:
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
     # The following line can be used to set a custom config file, stored in the local config folder
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    MLFLOW_TRACKING_URI: http://mlflow:5050
+
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    - mlflow-data:/mlflow
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -56,6 +59,7 @@ services:
   airflow-dag-processor:
     <<: *airflow-common
     command: dag-processor
+    mem_limit: 4g
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
       interval: 30s
@@ -192,7 +196,28 @@ services:
       _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
       _PIP_ADDITIONAL_REQUIREMENTS: ''
     user: "0:0"
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+    ports:
+      - "5050:5050"
+    user: "0:0"
+    volumes:
+      - mlflow-data:/mlflow  # mount to persist db & artifacts
+    environment:
+      BACKEND_URI: sqlite:///mlflow.db
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:5050/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+
+
 
 
 volumes:
   postgres-db-volume:
+  mlflow-data:

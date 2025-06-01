@@ -9,6 +9,9 @@ import pickle
 import mlflow
 from sklearn.linear_model import LinearRegression
 from sklearn.feature_extraction import DictVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import SGDRegressor
+
 
 URL = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-03.parquet"
 LOCAL_FILE = "/tmp/yellow_tripdata_2023-03.parquet"
@@ -36,31 +39,66 @@ def task_prepare_data():
     df.to_parquet("/tmp/processed.parquet", index=False)
     logging.info(f"✅ Prepared dataframe with {len(df):,} records")
 
+    try:
+        os.remove(LOCAL_FILE)
+        logging.info(f"🧹 Removed raw file: {LOCAL_FILE}")
+    except Exception as e:
+        logging.warning(f"⚠️ Failed to delete {LOCAL_FILE}: {e}")
+
 
 def task_train_model():
-    df = pd.read_parquet("/tmp/processed.parquet")
+    logging.info("🚀 task_train_model started")
 
-    categorical = ['PULocationID', 'DOLocationID']
-    train_dicts = df[categorical].to_dict(orient='records')
+    try:
+        df = pd.read_parquet("/tmp/processed.parquet")
+        logging.info(f"✅ Loaded processed parquet file with shape: {df.shape}")
+    except Exception as e:
+        logging.error("❌ Failed while reading parquet file", exc_info=e)
+        return
 
-    dv = DictVectorizer()
-    X_train = dv.fit_transform(train_dicts)
-    y_train = df['duration']
+    try:
+        # Sample ~10% randomly
+        df_sampled = df.sample(frac=0.1, random_state=42)
+        logging.info(f"✅ Random sampling complete, new shape: {df_sampled.shape}")
 
-    model = LinearRegression()
-    model.fit(X_train, y_train)
+        categorical = ['PULocationID', 'DOLocationID']
+        train_dicts = df_sampled[categorical].to_dict(orient='records')
+        y_train = df_sampled['duration']
+        logging.info("✅ Successfully converted to dicts and extracted y")
+    except Exception as e:
+        logging.error("❌ Failed during sampling or dict conversion", exc_info=e)
+        return
 
-    with open("/tmp/dv.pkl", "wb") as f_out:
-        pickle.dump(dv, f_out)
+    try:
+        dv = DictVectorizer()
+        X_train = dv.fit_transform(train_dicts)
+        logging.info(f"✅ DictVectorizer fit complete, X_train shape: {X_train.shape}")
+    except Exception as e:
+        logging.error("❌ Failed during DictVectorizer.fit_transform", exc_info=e)
+        return
 
-    with open("/tmp/model.pkl", "wb") as f_out:
-        pickle.dump(model, f_out)
+    try:
+        model = SGDRegressor(max_iter=1000, tol=1e-3, random_state=42)
+        model.fit(X_train, y_train)
+        logging.info(f"✅ Model training complete. Intercept: {model.intercept_[0]:.2f}")
+    except Exception as e:
+        logging.error("❌ Failed during model.fit", exc_info=e)
+        return
 
-    logging.info(f"✅ Model intercept: {model.intercept_:.2f}")
+    try:
+        with open("/tmp/dv.pkl", "wb") as f_out:
+            pickle.dump(dv, f_out)
+        with open("/tmp/model.pkl", "wb") as f_out:
+            pickle.dump(model, f_out)
+        logging.info("✅ Model and vectorizer saved to disk")
+    except Exception as e:
+        logging.error("❌ Failed during model/vectorizer serialization", exc_info=e)
+
+
 
 
 def task_register_model():
-    mlflow.set_tracking_uri("http://mlflow:5000")
+    mlflow.set_tracking_uri("http://mlflow:5050")
     mlflow.set_experiment("yellow-taxi")
 
     with mlflow.start_run():
@@ -77,7 +115,7 @@ def task_register_model():
 
 
 with DAG(
-    dag_id="yellow_taxi_pipeline",
+    dag_id="yellow_taxi_pipeline_sgd_reg",
     start_date=datetime(2023, 3, 1),
     schedule=None,
     catchup=False,
